@@ -85,7 +85,7 @@ namespace WordClockConfig
             {
                 using (SerialPort port = new SerialPort(portName))
                 {
-
+                    port.BaudRate = 115200;
                     port.Open();
                     port.WriteTimeout = 1000;
                     string timeString = time.ToString("yyyy,MM,dd,HH,mm,ss");
