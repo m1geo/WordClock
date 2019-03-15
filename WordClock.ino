@@ -11,10 +11,19 @@
 
 #include "WordClock_Mapping.h"
 
+// IO Pins
 #define DISP_PIN    6
+#define LDR         A0
+
+// User Options
+#define LONG_MONTH 1
+
+// Display Config
 #define DISP_LINES  9
 #define DISP_WIDTH  15
-#define MAX_BRIGHT  32
+#define MAX_BRIGHT  128
+#define MIN_BRIGHT  16
+
 
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(DISP_WIDTH, DISP_LINES, DISP_PIN,
   NEO_MATRIX_TOP + NEO_MATRIX_LEFT +
@@ -32,11 +41,61 @@ const uint16_t colours[] =
   matrix.Color(255, 0, 255)     // magenta (red + blue)
 };
 
+unsigned int ldra[5] = {0, 0, 0, 0, 0};
+unsigned int LDRVAL = 0;
+unsigned int BRIGHT = MAX_BRIGHT; // average scaling between 0-255 for LED brightness.
+unsigned int BRIGHTOLD = BRIGHT;
 const unsigned int num_colours = sizeof(colours)/sizeof(uint16_t);
 int x = matrix.width();
 int pass = 0;
 uint32_t z = 0;
 char disp_str[15];
+
+// ISR code to read LDR and respond to brightness changes
+ISR(TIMER1_COMPA_vect) // interrupt 10Hz on Timer 1
+{
+  // LDR code
+  int i=0;
+
+  // Read the ADC (LDR value)
+  LDRVAL = analogRead(LDR);
+
+  // 5 point agerage
+  ldra[0] = ldra[1];
+  ldra[1] = ldra[2];
+  ldra[2] = ldra[3];
+  ldra[3] = ldra[4];
+  ldra[4] = LDRVAL;
+  
+  // Average of ldra into LDRVAL
+  LDRVAL = 0;
+  for (i=0; i<(sizeof(ldra)/sizeof(ldra[0])); i++) {
+    LDRVAL += ldra[i];
+  }
+  LDRVAL /= (sizeof(ldra)/sizeof(ldra[0]));
+  
+  if (LDRVAL>83) {
+    BRIGHT = (LDRVAL-83)/2.4; // ADC<=200 is 1 PWM. ADC>=800 is 255 PWM - F(x) = 0.4233x - 83.67 ## 1/0.423 = 2.364
+  } else {
+    BRIGHT = MIN_BRIGHT;
+  }
+  if (BRIGHT < MIN_BRIGHT) {
+    BRIGHT = MIN_BRIGHT;
+  }
+  if (BRIGHT > MAX_BRIGHT) {
+    BRIGHT = MAX_BRIGHT;
+  }
+
+  if (BRIGHT != BRIGHTOLD)
+  {
+    matrix.setBrightness(BRIGHT);
+    matrix.show();
+    Serial.print(LDRVAL);
+    Serial.print("/");
+    Serial.println(BRIGHT);
+  }
+  BRIGHTOLD = BRIGHT;
+}
 
 void setup()
 {
@@ -50,11 +109,27 @@ void setup()
 
   // seed the PRNG
   randomSeed(analogRead(0) + hour(now()) +  minute(now()) + second(now()));
+
+  // interupts for reading the LDR regularly, and updating the brightness
+  cli();//stop interrupts
+  //set timer1 interrupt at 1Hz
+  TCCR1A = 0;// set entire TCCR1A register to 0
+  TCCR1B = 0;// same for TCCR1B
+  TCNT1  = 0;//initialize counter value to 0
+  // set compare match register for 10hz increments
+  OCR1A = 1562;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+  // turn on CTC mode
+  TCCR1B |= (1 << WGM12);
+  // Set CS12 and CS10 bits for 1024 prescaler
+  TCCR1B |= (1 << CS12) | (1 << CS10);  
+  // enable timer compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+  sei();//allow interrupts
   
   matrix.begin();
   matrix.setTextWrap(false);
   Twinkle();
-  matrix.setBrightness(MAX_BRIGHT);
+  matrix.setBrightness(BRIGHT);
   dispWord(w_M1GEO, colours[random(0, num_colours)]); // random colour
   delay(250);
   dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
@@ -199,7 +274,7 @@ void dispWord(uint32_t wrds, uint16_t colour)
 
 void Twinkle()
 {
-  matrix.setBrightness(MAX_BRIGHT/3);
+  matrix.setBrightness(BRIGHT/3);
   for(int t = 0; t < 15; t++)
     {
     for(int l = 0; l < DISP_LINES; l++)
@@ -212,7 +287,7 @@ void Twinkle()
     matrix.show();
     delay(75);
   }
-  matrix.setBrightness(MAX_BRIGHT);
+  matrix.setBrightness(BRIGHT);
 }
 
 // This function could do with being tidied, but it works well and is relatively easy to follow.
