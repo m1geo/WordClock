@@ -34,9 +34,9 @@ const uint32_t w_EVENING = 33554432;
 const uint32_t w_MORNING = 67108864;
 const uint32_t w_AFTERNOON = 134217728;
 const uint32_t w_NOON = 268435456;
-const uint32_t w_PERSONALISATION = 536870912;
+//const uint32_t w_PERSONALISATION = 536870912;
 
-// {word_enum, line, start_pixel, number_pixels}
+// {line, start_pixel, number_pixels}
 // top left is line=0,start_pixel=0
 uint8_t word_pixel_data[][3] = {
   {0,  0,  2}, // w_IT
@@ -67,6 +67,6 @@ uint8_t word_pixel_data[][3] = {
   {7,  0,  7}, // w_EVENING
   {7,  7,  7}, // w_MORNING
   {8,  0,  9}, // w_AFTERNOON
-  {8,  5,  4}, // w_NOON
-  {8, 10,  5}  // w_PERSONALISATION
+  {8,  5,  4} // w_NOON
+  //{8, 10,  5}  // w_PERSONALISATION
 };
