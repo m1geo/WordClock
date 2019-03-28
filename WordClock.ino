@@ -25,6 +25,7 @@ enum EEPROM_ADDRESSES {
   E_TEMP_UNITS,
   E_MANUAL_BRIGHTNESS,
   E_PERSONALISATION_BITS,
+  E_HALF_INTERVALS,
 };
 
 // User Options
@@ -36,6 +37,7 @@ uint8_t SCROLL_DELAY = 25;
 uint8_t TEMP_UNITS = TEMP_UNITS_C;
 uint8_t MANUAL_BRIGHTNESS = 0;
 uint8_t PERSONALISATION_BITS = 0b00011111;
+uint8_t HALF_INTERVALS = 0;
 
 // Display Config - DON'T TOUCH
 #define DISP_LINES   9
@@ -138,6 +140,7 @@ void setup()
   TEMP_UNITS = EEPROM.read(E_TEMP_UNITS);
   MANUAL_BRIGHTNESS = EEPROM.read(E_MANUAL_BRIGHTNESS);
   PERSONALISATION_BITS = EEPROM.read(E_PERSONALISATION_BITS);
+  HALF_INTERVALS = EEPROM.read(E_HALF_INTERVALS);
   
   Serial.begin(115200);
   // setSyncProvider() causes the Time library to synchronize with the
@@ -233,9 +236,15 @@ void readSerial() {
     case 'U': setTempUnits(); break;
     case 'L': setLongMonth(); break;
     case 'P': setPersonalisationBits(); break;
+    case 'H': setHalfIntervals(); break;
     case '#': scrollTextFromSerial(); break;
     case '\n': scrollEverything(); break;
   }
+}
+
+void setHalfIntervals() {
+  HALF_INTERVALS = Serial.parseInt();
+  EEPROM.write(E_HALF_INTERVALS, HALF_INTERVALS);
 }
 
 void setPersonalisationBits() {
@@ -448,6 +457,10 @@ void Twinkle()
 // This function could do with being tidied, but it works well and is relatively easy to follow.
 uint32_t timeToWords(time_t t)
 {
+  if (HALF_INTERVALS != 0) {
+    t += 150; // Offset forwards by 2.5 minutes so we roll over at the mid-points
+  }
+  
   uint32_t frame = 0;
   byte m = minute(t);
   byte h = hour(t);
