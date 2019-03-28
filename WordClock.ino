@@ -230,9 +230,9 @@ void scrollEverything() {
   dispWord(timeToWords(localNow()), getWordsColour()); // random colour
 }
 
-void readSerial() {
+uint8_t readSerial() {
   if (Serial.available() == 0)
-    return;
+    return 0;
 
   switch (Serial.read()) {
     case 'D': setDate(); break;
@@ -244,8 +244,9 @@ void readSerial() {
     case 'H': setHalfIntervals(); break;
     case 'V': printVersion(); break;
     case '#': scrollTextFromSerial(); break;
-    case '\n': scrollEverything(); break;
+    case '=': scrollEverything(); break;
   }
+  return 1;
 }
 
 void printVersion() {
@@ -381,7 +382,9 @@ void scrollString(char * stringarr, uint16_t colour)
       run_loop = 0;
     }
     matrix.show();
-    readSerial();
+    if (readSerial()) {
+      return;
+    }
     delay(SCROLL_DELAY);
   }
 }

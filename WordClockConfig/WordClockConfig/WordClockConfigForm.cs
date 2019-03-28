@@ -94,8 +94,24 @@ namespace WordClockConfig
                     port.DtrEnable = false;
                     port.ReadLine();
                     port.WriteTimeout = 1000;
+                    port.WriteLine("S10");
+                    Thread.Sleep(2000);
                     string timeString = time.ToString("Dyyyy,MM,dd,HH,mm,ss");
                     port.WriteLine(timeString);
+                    Thread.Sleep(3000);
+                    port.WriteLine("B128");
+                    //Thread.Sleep(250);
+                    port.WriteLine("U1");
+                    //Thread.Sleep(250);
+                    port.WriteLine("L1");
+                    //Thread.Sleep(250);
+                    port.WriteLine("H1");
+                    //Thread.Sleep(250);
+                    port.WriteLine("P31");
+                    //Thread.Sleep(250);
+                    port.WriteLine("S75");
+                    port.WriteLine("#ProgDone");
+
                     port.Close();
                 }
                 Invoke(new MethodInvoker(() =>
