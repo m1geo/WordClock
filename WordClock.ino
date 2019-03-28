@@ -53,7 +53,7 @@ const unsigned int num_colours = sizeof(colours)/sizeof(uint16_t);
 int x = matrix.width();
 int pass = 0;
 uint32_t z = 0;
-char disp_str[15];
+char disp_str[20];
 
 // ISR code to read LDR and respond to brightness changes
 ISR(TIMER1_COMPA_vect) // interrupt 10Hz on Timer 1
@@ -110,7 +110,8 @@ void setup()
   Serial.print(F("RTC Sync"));
   if (timeStatus() != timeSet) {
     Serial.print(F(" FAILED"));
-    scrollString("RTC SYNC FAIL", matrix.Color(255, 0, 0)); // red
+    strcpy(disp_str, "RTC SYNC FAIL");
+    scrollString(disp_str, matrix.Color(255, 0, 0)); // red
   }
   Serial.println("");
 
@@ -166,7 +167,7 @@ void loop() {
       else {
           if (y >= 1000)
               tm.Year = CalendarYrToTm(y);
-          else    // (y < 100)
+          else    // (y < 1000)
               tm.Year = y2kYearToTm(y);
           tm.Month = Serial.parseInt();
           tm.Day = Serial.parseInt();
@@ -176,11 +177,12 @@ void loop() {
           t = makeTime(tm);
           RTC.set(t);        // use the time_t value to ensure correct weekday is set
           setTime(t);
-          Serial.println(F("RTC SET OK"));
+          Serial.println(F("RTC SET"));
           // dump any extraneous input
           while (Serial.available() > 0) Serial.read();
           time_t t = now();
-          scrollString("RTC SET OK", matrix.Color(0, 255, 0)); // green
+          strcpy(disp_str, "RTC SYNC OK");
+          scrollString(disp_str, matrix.Color(0, 255, 0)); // green
           scrollTime(t, colours[random(0, num_colours)]); // random colour
           scrollDate(t, colours[random(0, num_colours)]); // random colour
           
@@ -212,7 +214,7 @@ void loop() {
 
 void scrollTime(time_t t, uint16_t colour)
 {
-  int scrolllimit = sprintf(disp_str, "%02u:%02u", hour(t), minute(t));
+  sprintf(disp_str, "%02u:%02u", hour(t), minute(t));
   scrollString(disp_str, colour);
 }
 
@@ -220,9 +222,9 @@ void scrollDate(time_t t, uint16_t colour)
 {
   int scrolllimit = 0;
   if (LONG_MONTH == 1) {
-    scrolllimit = sprintf(disp_str, "%u %s %04u", day(t), monthStr(month(t)), year(t));
+    sprintf(disp_str, "%u %s %04u", day(t), monthStr(month(t)), year(t));
   } else {
-    scrolllimit = sprintf(disp_str, "%u %s %04u", day(t), monthShortStr(month(t)), year(t));
+    sprintf(disp_str, "%u %s %04u", day(t), monthShortStr(month(t)), year(t));
   }
   scrollString(disp_str, colour);
 }
@@ -231,7 +233,7 @@ void scrollTemp(float temp, uint16_t colour)
 {
   int intC = (int) temp; // integer
   int fraC = (int) (temp*10) - (intC * 10); // 1 dec point
-  int scrolllimit = sprintf(disp_str, "%d.%d C", intC, fraC); // to string
+  sprintf(disp_str, "%d.%d C", intC, fraC); // to string
   scrollString(disp_str, colour);
 }
 
