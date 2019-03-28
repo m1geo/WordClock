@@ -216,7 +216,10 @@ uint16_t getWordsColour() {
 void scrollEverything() {
   time_t t = localNow();
   float c = RTC.temperature() / 4.0;
-  Serial.println("Current time: " + String(hour(t)) + ":" + String(minute(t)));
+
+  sprintf(disp_str, "%04u-%02u-%02u %02u:%02u:%02u", year(t), month(t), day(t), hour(t), minute(t), second(t));
+  Serial.println("RTC time: " + String(disp_str));
+  
   matrix.fillScreen(0);
   dispPersonalisation(PERSONALISATION_BITS, colours[random(0, num_colours)]); // random colour
   delay(1000);
@@ -319,7 +322,6 @@ void scrollTextFromSerial() {
   String text = Serial.readString();
   Serial.println(text);
   text.toCharArray(disp_str, sizeof(disp_str) / sizeof(char));
-  Serial.println(disp_str);
   scrollString(disp_str, colours[random(0, num_colours)]);
   dispWord(timeToWords(localNow()), getWordsColour());
 }
