@@ -4,6 +4,8 @@
 // https://www.george-smart.co.uk/wordclock
 // https://github.com/m1geo/WordClock
 
+// Set clock with:  2020,01,01,11,59,00,
+
 #include <DS3232RTC.h>          // https://github.com/JChristensen/DS3232RTC
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
@@ -175,14 +177,12 @@ void loop() {
           RTC.set(t);        // use the time_t value to ensure correct weekday is set
           setTime(t);
           Serial.println(F("RTC SET OK"));
-          scrollString("RTC SET OK", matrix.Color(0, 255, 0)); // green
           // dump any extraneous input
           while (Serial.available() > 0) Serial.read();
           time_t t = now();
-          float c = RTC.temperature() / 4.0;
+          scrollString("RTC SET OK", matrix.Color(0, 255, 0)); // green
           scrollTime(t, colours[random(0, num_colours)]); // random colour
           scrollDate(t, colours[random(0, num_colours)]); // random colour
-          scrollTemp(c, colours[random(0, num_colours)]); // random colour
           
           dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
           dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
@@ -398,7 +398,7 @@ uint32_t timeToWords(time_t t)
       break;
   }
 
-  if (h2 > 12)
+  if (h2 >= 12) // greater than or equal to twelve is PM. 12:00 is afternoon, 00:00 is morning.
   {
     h2 -= 12;
     pm = 1;
@@ -451,12 +451,22 @@ uint32_t timeToWords(time_t t)
   if (pm == 0)
   {
     frame |= w_MORNING;
-  } else if (h >= 6) 
+  } else if (h2 >= 6)
   {
     frame |= w_EVENING;
   } else {
     frame |= w_AFTERNOON;
   }
-  
+  /* For testing the Morning, Afternoon, Evening handler.
+  Serial.println("---");
+  Serial.print("m=");
+  Serial.println(m);
+  Serial.print("h=");
+  Serial.println(h);
+  Serial.print("h2=");
+  Serial.println(h2);
+  Serial.print("pm=");
+  Serial.println(pm);
+  */
   return frame;
 }
