@@ -12,17 +12,19 @@
 #include "WordClock_Mapping.h"
 
 // IO Pins
-#define DISP_PIN    6
-#define LDR         A0
+#define DISP_PIN     6
+#define LDR          A0
 
 // User Options
-#define LONG_MONTH 1
+#define LONG_MONTH   1
+#define SCROLL_DLY   100
 
-// Display Config
-#define DISP_LINES  9
-#define DISP_WIDTH  15
-#define MAX_BRIGHT  128
-#define MIN_BRIGHT  16
+// Display Config - DON'T TOUCH
+#define DISP_LINES   9
+#define DISP_WIDTH   15
+#define MAX_BRIGHT   128
+#define MIN_BRIGHT   16
+#define LED_PER_CHAR 6
 
 
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(DISP_WIDTH, DISP_LINES, DISP_PIN,
@@ -104,7 +106,10 @@ void setup()
   // external RTC by calling RTC.get() every five minutes by default.
   setSyncProvider(RTC.get);
   Serial.print(F("RTC Sync"));
-  if (timeStatus() != timeSet) Serial.print(F(" FAILED"));
+  if (timeStatus() != timeSet) {
+    Serial.print(F(" FAILED"));
+    scrollString("RTC SYNC FAIL", matrix.Color(255, 0, 0)); // red
+  }
   Serial.println("");
 
   // seed the PRNG
@@ -170,14 +175,18 @@ void loop() {
           RTC.set(t);        // use the time_t value to ensure correct weekday is set
           setTime(t);
           Serial.println(F("RTC SET OK"));
+          scrollString("RTC SET OK", matrix.Color(0, 255, 0)); // green
           // dump any extraneous input
           while (Serial.available() > 0) Serial.read();
+          time_t t = now();
+          float c = RTC.temperature() / 4.0;
+          scrollTime(t, colours[random(0, num_colours)]); // random colour
+          scrollDate(t, colours[random(0, num_colours)]); // random colour
+          scrollTemp(c, colours[random(0, num_colours)]); // random colour
+          
+          dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
+          dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
       }
-  } else if (Serial.available()) { // display test function - takes integer from the UART and writes it to the display
-    unsigned long a = Serial.parseInt();
-    Serial.println("Got:");
-    Serial.println(a);
-    dispWord(a, colours[random(0, num_colours)]); // random colour
   }
 
   // get the time
@@ -203,47 +212,33 @@ void loop() {
 
 void scrollTime(time_t t, uint16_t colour)
 {
-  sprintf(disp_str, "%02u:%02u", hour(t), minute(t), second(t));
-  byte run_loop = 1;
-  matrix.setTextColor(colour);
-  while (run_loop)
-  {
-    matrix.fillScreen(0);
-    matrix.setCursor(x, 1);
-    matrix.print(disp_str);
-    if(--x < -30) {
-      x = matrix.width();
-      run_loop = 0;
-    }
-    matrix.show();
-    delay(100);
-  }
+  int scrolllimit = sprintf(disp_str, "%02u:%02u", hour(t), minute(t));
+  scrollString(disp_str, colour);
 }
 
 void scrollDate(time_t t, uint16_t colour)
 {
-  sprintf(disp_str, "%u %s %04u", day(t), monthShortStr(month(t)), year(t));
-  byte run_loop = 1;
-  matrix.setTextColor(colour);
-  while (run_loop)
-  {
-    matrix.fillScreen(0);
-    matrix.setCursor(x, 1);
-    matrix.print(disp_str);
-    if(--x < -65) {
-      x = matrix.width();
-      run_loop = 0;
-    }
-    matrix.show();
-    delay(100);
+  int scrolllimit = 0;
+  if (LONG_MONTH == 1) {
+    scrolllimit = sprintf(disp_str, "%u %s %04u", day(t), monthStr(month(t)), year(t));
+  } else {
+    scrolllimit = sprintf(disp_str, "%u %s %04u", day(t), monthShortStr(month(t)), year(t));
   }
+  scrollString(disp_str, colour);
 }
 
 void scrollTemp(float temp, uint16_t colour)
 {
   int intC = (int) temp; // integer
   int fraC = (int) (temp*10) - (intC * 10); // 1 dec point
-  sprintf(disp_str, "%d.%d C", intC, fraC); // to string
+  int scrolllimit = sprintf(disp_str, "%d.%d C", intC, fraC); // to string
+  scrollString(disp_str, colour);
+}
+
+// disp_str length sets maximum string length
+void scrollString(char * stringarr, uint16_t colour)
+{
+  int scrolllimit = strlen(stringarr);
   byte run_loop = 1;
   matrix.setTextColor(colour);
   while (run_loop)
@@ -251,12 +246,12 @@ void scrollTemp(float temp, uint16_t colour)
     matrix.fillScreen(0);
     matrix.setCursor(x, 1);
     matrix.print(disp_str);
-    if(--x < -36) {
+    if(--x < -(scrolllimit*LED_PER_CHAR)) {
       x = matrix.width();
       run_loop = 0;
     }
     matrix.show();
-    delay(100);
+    delay(SCROLL_DLY);
   }
 }
 
