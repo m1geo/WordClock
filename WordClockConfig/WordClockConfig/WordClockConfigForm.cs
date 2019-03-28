@@ -87,6 +87,12 @@ namespace WordClockConfig
                 {
                     port.BaudRate = 115200;
                     port.Open();
+                    port.DtrEnable = false;
+                    Thread.Sleep(100);
+                    port.DtrEnable = true;
+                    Thread.Sleep(100);
+                    port.DtrEnable = false;
+                    port.ReadLine();
                     port.WriteTimeout = 1000;
                     string timeString = time.ToString("Dyyyy,MM,dd,HH,mm,ss");
                     port.WriteLine(timeString);
