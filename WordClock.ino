@@ -131,7 +131,15 @@ void setup()
   Twinkle();
   matrix.setBrightness(BRIGHT);
   dispWord(w_M1GEO, colours[random(0, num_colours)]); // random colour
-  delay(250);
+  delay(1000);
+  
+  time_t t = now();
+  float c = RTC.temperature() / 4.0;
+  scrollTime(t, colours[random(0, num_colours)]); // random colour
+  scrollDate(t, colours[random(0, num_colours)]); // random colour
+  scrollTemp(c, colours[random(0, num_colours)]); // random colour
+  
+  dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
   dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
 }
 
@@ -222,7 +230,7 @@ void scrollDate(time_t t, uint16_t colour)
     matrix.fillScreen(0);
     matrix.setCursor(x, 1);
     matrix.print(disp_str);
-    if(--x < -60) {
+    if(--x < -65) {
       x = matrix.width();
       run_loop = 0;
     }
@@ -243,7 +251,7 @@ void scrollTemp(float temp, uint16_t colour)
     matrix.fillScreen(0);
     matrix.setCursor(x, 1);
     matrix.print(disp_str);
-    if(--x < -45) {
+    if(--x < -36) {
       x = matrix.width();
       run_loop = 0;
     }
@@ -261,10 +269,11 @@ void dispWord(uint32_t wrds, uint16_t colour)
       uint8_t line   = word_pixel_data[i][0];
       uint8_t pixel  = word_pixel_data[i][1];
       uint8_t pixlen = word_pixel_data[i][2];
-      //uint16_t colour   = colours[random(0, num_colours)];
+      //uint16_t colour   = colours[random(0, num_colours)]; // random colour per word
       //sprintf(disp_str, "i=%d line=%u, pixel=%u, pixlen=%u, col=%u \n", i, line, pixel, pixlen, colour);
       //Serial.print(disp_str);
       for (int j = pixel; j < (pixel + pixlen); j++) {
+        //uint16_t colour   = colours[random(0, num_colours)]; // random colour per letter
         matrix.drawPixel(j, line, colour);
       }
     }
