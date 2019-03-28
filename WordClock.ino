@@ -14,6 +14,8 @@
 
 #include "WordClock_Mapping.h"
 
+#define PROTOCOL_VERSION 1
+
 // IO Pins
 #define DISP_PIN     6
 #define LDR          A0
@@ -237,9 +239,14 @@ void readSerial() {
     case 'L': setLongMonth(); break;
     case 'P': setPersonalisationBits(); break;
     case 'H': setHalfIntervals(); break;
+    case 'V': printVersion(); break;
     case '#': scrollTextFromSerial(); break;
     case '\n': scrollEverything(); break;
   }
+}
+
+void printVersion() {
+  Serial.println("Firmware built at " + String(__DATE__) + " " + String(__TIME__) + " protocol version #" + String(PROTOCOL_VERSION));
 }
 
 void setHalfIntervals() {
