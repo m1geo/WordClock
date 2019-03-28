@@ -10,6 +10,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
+#include <EEPROM.h>
 
 #include "WordClock_Mapping.h"
 
@@ -17,9 +18,22 @@
 #define DISP_PIN     6
 #define LDR          A0
 
+// EEPROM addressing
+enum EEPROM_ADDRESSES {
+  E_LONG_MONTH,
+  E_SCROLL_DELAY,
+  E_TEMP_UNITS,
+  E_MANUAL_BRIGHTNESS,
+};
+
 // User Options
-#define LONG_MONTH   1
-#define SCROLL_DLY   100
+#define TEMP_UNITS_C 1
+#define TEMP_UNITS_F 2
+#define TEMP_UNITS_K 3
+uint8_t LONG_MONTH = 1;
+uint8_t SCROLL_DELAY = 25;
+uint8_t TEMP_UNITS = TEMP_UNITS_C;
+uint8_t MANUAL_BRIGHTNESS = 0;
 
 // Display Config - DON'T TOUCH
 #define DISP_LINES   9
@@ -58,31 +72,36 @@ char disp_str[20];
 // ISR code to read LDR and respond to brightness changes
 ISR(TIMER1_COMPA_vect) // interrupt 10Hz on Timer 1
 {
-  // LDR code
-  int i=0;
-
-  // Read the ADC (LDR value)
-  LDRVAL = analogRead(LDR);
-
-  // 5 point agerage
-  ldra[0] = ldra[1];
-  ldra[1] = ldra[2];
-  ldra[2] = ldra[3];
-  ldra[3] = ldra[4];
-  ldra[4] = LDRVAL;
+  if (MANUAL_BRIGHTNESS == 0) {
+    // LDR code
+    int i=0;
   
-  // Average of ldra into LDRVAL
-  LDRVAL = 0;
-  for (i=0; i<(sizeof(ldra)/sizeof(ldra[0])); i++) {
-    LDRVAL += ldra[i];
-  }
-  LDRVAL /= (sizeof(ldra)/sizeof(ldra[0]));
+    // Read the ADC (LDR value)
+    LDRVAL = analogRead(LDR);
   
-  if (LDRVAL>83) {
-    BRIGHT = (LDRVAL-83)/2.4; // ADC<=200 is 1 PWM. ADC>=800 is 255 PWM - F(x) = 0.4233x - 83.67 ## 1/0.423 = 2.364
+    // 5 point agerage
+    ldra[0] = ldra[1];
+    ldra[1] = ldra[2];
+    ldra[2] = ldra[3];
+    ldra[3] = ldra[4];
+    ldra[4] = LDRVAL;
+    
+    // Average of ldra into LDRVAL
+    LDRVAL = 0;
+    for (i=0; i<(sizeof(ldra)/sizeof(ldra[0])); i++) {
+      LDRVAL += ldra[i];
+    }
+    LDRVAL /= (sizeof(ldra)/sizeof(ldra[0]));
+    
+    if (LDRVAL>83) {
+      BRIGHT = (LDRVAL-83)/2.4; // ADC<=200 is 1 PWM. ADC>=800 is 255 PWM - F(x) = 0.4233x - 83.67 ## 1/0.423 = 2.364
+    } else {
+      BRIGHT = MIN_BRIGHT;
+    }
   } else {
-    BRIGHT = MIN_BRIGHT;
+    BRIGHT = MANUAL_BRIGHTNESS;
   }
+  
   if (BRIGHT < MIN_BRIGHT) {
     BRIGHT = MIN_BRIGHT;
   }
@@ -101,8 +120,22 @@ ISR(TIMER1_COMPA_vect) // interrupt 10Hz on Timer 1
   BRIGHTOLD = BRIGHT;
 }
 
+time_t localNow() {
+  time_t t = now();
+  if (calcLocalHour(t) == true) {
+    t += SECS_PER_HOUR;
+  }
+  return t;
+}
+
 void setup()
 {
+  // Read settings from EEPROM
+  LONG_MONTH = EEPROM.read(E_LONG_MONTH);
+  SCROLL_DELAY = EEPROM.read(E_SCROLL_DELAY);
+  TEMP_UNITS = EEPROM.read(E_TEMP_UNITS);
+  MANUAL_BRIGHTNESS = EEPROM.read(E_MANUAL_BRIGHTNESS);
+  
   Serial.begin(115200);
   // setSyncProvider() causes the Time library to synchronize with the
   // external RTC by calling RTC.get() every five minutes by default.
@@ -116,7 +149,7 @@ void setup()
   Serial.println("");
 
   // seed the PRNG
-  randomSeed(analogRead(0) + hour(now()) +  minute(now()) + second(now()));
+  randomSeed(analogRead(0) + hour(localNow()) +  minute(localNow()) + second(localNow()));
 
   // interupts for reading the LDR regularly, and updating the brightness
   cli();//stop interrupts
@@ -141,58 +174,16 @@ void setup()
   dispWord(w_PERSONALISATION, colours[random(0, num_colours)]); // random colour
   delay(1000);
   
-  time_t t = now();
-  float c = RTC.temperature() / 4.0;
-  scrollTime(t, colours[random(0, num_colours)]); // random colour
-  scrollDate(t, colours[random(0, num_colours)]); // random colour
-  scrollTemp(c, colours[random(0, num_colours)]); // random colour
-  
-  dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
-  dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
+  scrollEverything();
 }
 
 void loop() {
   static time_t tLast;
   time_t t;
-  tmElements_t tm;
-
-  // check for input to set the RTC, minimum length is 12, i.e. yy,m,d,h,m,s
-  if (Serial.available() >= 12) {
-      // note that the tmElements_t Year member is an offset from 1970,
-      // but the RTC wants the last two digits of the calendar year.
-      // use the convenience macros from the Time Library to do the conversions.
-      int y = Serial.parseInt();
-      if (y >= 100 && y < 1000)
-          Serial.println(F("Error: Year must be two digits or four digits!"));
-      else {
-          if (y >= 1000)
-              tm.Year = CalendarYrToTm(y);
-          else    // (y < 1000)
-              tm.Year = y2kYearToTm(y);
-          tm.Month = Serial.parseInt();
-          tm.Day = Serial.parseInt();
-          tm.Hour = Serial.parseInt();
-          tm.Minute = Serial.parseInt();
-          tm.Second = Serial.parseInt();
-          t = makeTime(tm);
-          RTC.set(t);        // use the time_t value to ensure correct weekday is set
-          setTime(t);
-          Serial.println(F("RTC SET"));
-          // dump any extraneous input
-          while (Serial.available() > 0) Serial.read();
-          time_t t = now();
-          strcpy(disp_str, "RTC SYNC OK");
-          scrollString(disp_str, matrix.Color(0, 255, 0)); // green
-          scrollTime(t, colours[random(0, num_colours)]); // random colour
-          scrollDate(t, colours[random(0, num_colours)]); // random colour
-          
-          dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
-          dispWord(timeToWords(now()), colours[random(0, num_colours)]); // random colour
-      }
-  }
-
+  readSerial();
+  
   // get the time
-  t = now();
+  t = localNow();
 
   // has the time changed?
   if (t != tLast) {
@@ -212,10 +203,102 @@ void loop() {
   }
 }
 
+void scrollEverything() {
+  time_t t = localNow();
+  float c = RTC.temperature() / 4.0;
+  Serial.println("Current time: " + String(hour(t)) + ":" + String(minute(t)));
+  scrollTime(t, colours[random(0, num_colours)]); // random colour
+  scrollDate(t, colours[random(0, num_colours)]); // random colour
+  scrollTemp(c, colours[random(0, num_colours)]); // random colour
+
+  dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
+}
+
+void readSerial() {
+  if (Serial.available() == 0)
+    return;
+
+  switch (Serial.read()) {
+    case 'D': setDate(); break;
+    case 'S': setScrollDelay(); break;
+    case 'B': setBrightness(); break;
+    case 'U': setTempUnits(); break;
+    case 'L': setLongMonth(); break;
+    case '#': scrollTextFromSerial(); break;
+    case '\n': scrollEverything(); break;
+  }
+}
+
+void setLongMonth() {
+  LONG_MONTH = Serial.parseInt();
+  EEPROM.write(E_LONG_MONTH, LONG_MONTH);
+}
+
+void setScrollDelay() {
+  SCROLL_DELAY = Serial.parseInt();
+  EEPROM.write(E_SCROLL_DELAY, SCROLL_DELAY);
+}
+
+void setBrightness() {
+  MANUAL_BRIGHTNESS = Serial.parseInt();
+  EEPROM.write(E_MANUAL_BRIGHTNESS, MANUAL_BRIGHTNESS);
+}
+
+void setTempUnits() {
+  TEMP_UNITS = Serial.parseInt();
+  EEPROM.write(E_TEMP_UNITS, TEMP_UNITS);
+}
+
+void setDate() {
+  tmElements_t tm;
+  time_t t;
+  // note that the tmElements_t Year member is an offset from 1970,
+  // but the RTC wants the last two digits of the calendar year.
+  // use the convenience macros from the Time Library to do the conversions.
+  int y = Serial.parseInt();
+  if (y >= 100 && y < 1000)
+      Serial.println(F("Error: Year must be two digits or four digits!"));
+  else {
+      if (y >= 1000)
+          tm.Year = CalendarYrToTm(y);
+      else    // (y < 1000)
+          tm.Year = y2kYearToTm(y);
+      tm.Month = Serial.parseInt();
+      tm.Day = Serial.parseInt();
+      tm.Hour = Serial.parseInt();
+      tm.Minute = Serial.parseInt();
+      tm.Second = Serial.parseInt();
+      t = makeTime(tm);
+      RTC.set(t);        // use the time_t value to ensure correct weekday is set
+      setTime(t);
+      Serial.println(F("RTC SET"));
+      // dump any extraneous input
+      while (Serial.available() > 0) Serial.read();
+      time_t t = localNow();
+      strcpy(disp_str, "RTC SYNC OK");
+      scrollString(disp_str, matrix.Color(0, 255, 0)); // green
+      scrollTime(t, colours[random(0, num_colours)]); // random colour
+      scrollDate(t, colours[random(0, num_colours)]); // random colour
+      
+      dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
+      dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
+  }
+}
+
+void scrollTextFromSerial() {
+  Serial.println("ScrollText");
+  String text = Serial.readString();
+  Serial.println(text);
+  text.toCharArray(disp_str, sizeof(disp_str) / sizeof(char));
+  Serial.println(disp_str);
+  scrollString(disp_str, colours[random(0, num_colours)]);
+  dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
+}
+
 void scrollTime(time_t t, uint16_t colour)
 {
   sprintf(disp_str, "%02u:%02u", hour(t), minute(t));
-  scrollString(disp_str, colour);
+  scrollString(disp_str, colours[random(0, num_colours)]);
 }
 
 void scrollDate(time_t t, uint16_t colour)
@@ -231,9 +314,23 @@ void scrollDate(time_t t, uint16_t colour)
 
 void scrollTemp(float temp, uint16_t colour)
 {
+  char tempUnit;
+  switch (TEMP_UNITS) {
+    case TEMP_UNITS_F: 
+      temp = (temp * 1.8) + 32; 
+      tempUnit = 'F';
+      break;
+    case TEMP_UNITS_K: 
+      temp = temp + 273; 
+      tempUnit = 'K';
+      break;
+    default: 
+      tempUnit = 'C'; 
+      break;
+  }
   int intC = (int) temp; // integer
   int fraC = (int) (temp*10) - (intC * 10); // 1 dec point
-  sprintf(disp_str, "%d.%d C", intC, fraC); // to string
+  sprintf(disp_str, "%d.%d %c", intC, fraC, tempUnit); // to string
   scrollString(disp_str, colour);
 }
 
@@ -253,7 +350,8 @@ void scrollString(char * stringarr, uint16_t colour)
       run_loop = 0;
     }
     matrix.show();
-    delay(SCROLL_DLY);
+    readSerial();
+    delay(SCROLL_DELAY);
   }
 }
 
@@ -276,6 +374,30 @@ void dispWord(uint32_t wrds, uint16_t colour)
     }
   }
   matrix.show();
+}
+
+// From : http://stackoverflow.com/a/22761920/5378054
+byte calcLocalHour(time_t t)
+{
+  int DoW = (dayOfWeek(t) - 1) % 7;
+  int mon = month(t);
+  if (mon < 3 || mon > 10) {
+    return false; 
+  }
+  if (mon > 3 && mon < 10) {
+    return true; 
+  }
+
+  int previousSunday = day(t) - DoW;
+
+  if (mon == 3) {
+    return previousSunday >= 25;
+  }
+  if (mon == 10) {
+    return previousSunday < 25;
+  }
+
+  return false; // this line never gonna happen
 }
 
 void Twinkle()
