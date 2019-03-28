@@ -14,6 +14,8 @@
 
 #include "WordClock_Mapping.h"
 
+#define PROTOCOL_VERSION 1
+
 // IO Pins
 #define DISP_PIN     6
 #define LDR          A0
@@ -214,7 +216,10 @@ uint16_t getWordsColour() {
 void scrollEverything() {
   time_t t = localNow();
   float c = RTC.temperature() / 4.0;
-  Serial.println("Current time: " + String(hour(t)) + ":" + String(minute(t)));
+
+  sprintf(disp_str, "%04u-%02u-%02u %02u:%02u:%02u", year(t), month(t), day(t), hour(t), minute(t), second(t));
+  Serial.println("RTC time: " + String(disp_str));
+  
   matrix.fillScreen(0);
   dispPersonalisation(PERSONALISATION_BITS, colours[random(0, num_colours)]); // random colour
   delay(1000);
@@ -237,9 +242,14 @@ void readSerial() {
     case 'L': setLongMonth(); break;
     case 'P': setPersonalisationBits(); break;
     case 'H': setHalfIntervals(); break;
+    case 'V': printVersion(); break;
     case '#': scrollTextFromSerial(); break;
     case '\n': scrollEverything(); break;
   }
+}
+
+void printVersion() {
+  Serial.println("Firmware built at " + String(__DATE__) + " " + String(__TIME__) + " protocol version #" + String(PROTOCOL_VERSION));
 }
 
 void setHalfIntervals() {
@@ -312,7 +322,6 @@ void scrollTextFromSerial() {
   String text = Serial.readString();
   Serial.println(text);
   text.toCharArray(disp_str, sizeof(disp_str) / sizeof(char));
-  Serial.println(disp_str);
   scrollString(disp_str, colours[random(0, num_colours)]);
   dispWord(timeToWords(localNow()), getWordsColour());
 }
