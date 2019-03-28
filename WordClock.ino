@@ -138,7 +138,7 @@ void setup()
   matrix.setTextWrap(false);
   Twinkle();
   matrix.setBrightness(BRIGHT);
-  dispWord(w_M1GEO, colours[random(0, num_colours)]); // random colour
+  dispWord(w_PERSONALISATION, colours[random(0, num_colours)]); // random colour
   delay(1000);
   
   time_t t = now();
