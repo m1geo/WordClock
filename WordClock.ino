@@ -24,6 +24,7 @@ enum EEPROM_ADDRESSES {
   E_SCROLL_DELAY,
   E_TEMP_UNITS,
   E_MANUAL_BRIGHTNESS,
+  E_PERSONALISATION_BITS,
 };
 
 // User Options
@@ -34,6 +35,7 @@ uint8_t LONG_MONTH = 1;
 uint8_t SCROLL_DELAY = 25;
 uint8_t TEMP_UNITS = TEMP_UNITS_C;
 uint8_t MANUAL_BRIGHTNESS = 0;
+uint8_t PERSONALISATION_BITS = 0b00011111;
 
 // Display Config - DON'T TOUCH
 #define DISP_LINES   9
@@ -135,6 +137,7 @@ void setup()
   SCROLL_DELAY = EEPROM.read(E_SCROLL_DELAY);
   TEMP_UNITS = EEPROM.read(E_TEMP_UNITS);
   MANUAL_BRIGHTNESS = EEPROM.read(E_MANUAL_BRIGHTNESS);
+  PERSONALISATION_BITS = EEPROM.read(E_PERSONALISATION_BITS);
   
   Serial.begin(115200);
   // setSyncProvider() causes the Time library to synchronize with the
@@ -171,8 +174,6 @@ void setup()
   matrix.setTextWrap(false);
   Twinkle();
   matrix.setBrightness(BRIGHT);
-  dispWord(w_PERSONALISATION, colours[random(0, num_colours)]); // random colour
-  delay(1000);
   
   scrollEverything();
 }
@@ -198,20 +199,27 @@ void loop() {
         scrollTemp(c, colours[random(0, num_colours)]); // random colour
       }
       z = timeToWords(t);
-      dispWord(z, colours[random(0, num_colours)]); // random colour
+      dispWord(z, getWordsColour());
     }
   }
+}
+
+uint16_t getWordsColour() {
+  return colours[random(0, num_colours)];
 }
 
 void scrollEverything() {
   time_t t = localNow();
   float c = RTC.temperature() / 4.0;
   Serial.println("Current time: " + String(hour(t)) + ":" + String(minute(t)));
+  matrix.fillScreen(0);
+  dispPersonalisation(PERSONALISATION_BITS, colours[random(0, num_colours)]); // random colour
+  delay(1000);
   scrollTime(t, colours[random(0, num_colours)]); // random colour
   scrollDate(t, colours[random(0, num_colours)]); // random colour
   scrollTemp(c, colours[random(0, num_colours)]); // random colour
 
-  dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
+  dispWord(timeToWords(localNow()), getWordsColour()); // random colour
 }
 
 void readSerial() {
@@ -224,9 +232,15 @@ void readSerial() {
     case 'B': setBrightness(); break;
     case 'U': setTempUnits(); break;
     case 'L': setLongMonth(); break;
+    case 'P': setPersonalisationBits(); break;
     case '#': scrollTextFromSerial(); break;
     case '\n': scrollEverything(); break;
   }
+}
+
+void setPersonalisationBits() {
+  PERSONALISATION_BITS = Serial.parseInt();
+  EEPROM.write(E_PERSONALISATION_BITS, PERSONALISATION_BITS);
 }
 
 void setLongMonth() {
@@ -280,8 +294,7 @@ void setDate() {
       scrollTime(t, colours[random(0, num_colours)]); // random colour
       scrollDate(t, colours[random(0, num_colours)]); // random colour
       
-      dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
-      dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
+      dispWord(timeToWords(localNow()), getWordsColour());
   }
 }
 
@@ -292,7 +305,7 @@ void scrollTextFromSerial() {
   text.toCharArray(disp_str, sizeof(disp_str) / sizeof(char));
   Serial.println(disp_str);
   scrollString(disp_str, colours[random(0, num_colours)]);
-  dispWord(timeToWords(localNow()), colours[random(0, num_colours)]); // random colour
+  dispWord(timeToWords(localNow()), getWordsColour());
 }
 
 void scrollTime(time_t t, uint16_t colour)
@@ -355,6 +368,17 @@ void scrollString(char * stringarr, uint16_t colour)
   }
 }
 
+void dispPersonalisation(uint8_t bits, uint16_t colour) {
+  for (int i = 0; i < 6; i++) {
+    if ((bits & (1 << i)) != 0) {
+      matrix.drawPixel(14 - i, 8, colour);
+    } else {
+      matrix.drawPixel(14 - i, 8, 0);
+    }
+  }
+  matrix.show();
+}
+
 void dispWord(uint32_t wrds, uint16_t colour)
 {
   matrix.fillScreen(0);
@@ -364,16 +388,19 @@ void dispWord(uint32_t wrds, uint16_t colour)
       uint8_t line   = word_pixel_data[i][0];
       uint8_t pixel  = word_pixel_data[i][1];
       uint8_t pixlen = word_pixel_data[i][2];
-      //uint16_t colour   = colours[random(0, num_colours)]; // random colour per word
+      //colour   = colours[random(0, num_colours)]; // random colour per word
       //sprintf(disp_str, "i=%d line=%u, pixel=%u, pixlen=%u, col=%u \n", i, line, pixel, pixlen, colour);
       //Serial.print(disp_str);
       for (int j = pixel; j < (pixel + pixlen); j++) {
-        //uint16_t colour   = colours[random(0, num_colours)]; // random colour per letter
+        //colour   = colours[random(0, num_colours)]; // random colour per letter
         matrix.drawPixel(j, line, colour);
       }
     }
   }
   matrix.show();
+  if (PERSONALISATION_BITS & 0b10000000) {
+    dispPersonalisation(PERSONALISATION_BITS, colour);
+  }
 }
 
 // From : http://stackoverflow.com/a/22761920/5378054
