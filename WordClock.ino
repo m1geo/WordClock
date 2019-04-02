@@ -228,7 +228,7 @@ void scrollEverything() {
   scrollDate(t, colours[random(0, num_colours)]); // random colour
   scrollTemp(c, colours[random(0, num_colours)]); // random colour
 
-  dispWord(timeToWords(localNow()));\
+  dispWord(timeToWords(localNow()));
 }
 
 uint8_t readSerial() {
