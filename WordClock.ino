@@ -137,12 +137,7 @@ time_t localNow() {
 void setup()
 {
   // Read settings from EEPROM
-  LONG_MONTH = EEPROM.read(E_LONG_MONTH);
-  SCROLL_DELAY = EEPROM.read(E_SCROLL_DELAY);
-  TEMP_UNITS = EEPROM.read(E_TEMP_UNITS);
-  MANUAL_BRIGHTNESS = EEPROM.read(E_MANUAL_BRIGHTNESS);
-  PERSONALISATION_BITS = EEPROM.read(E_PERSONALISATION_BITS);
-  HALF_INTERVALS = EEPROM.read(E_HALF_INTERVALS);
+  readEEPROM();
   
   Serial.begin(115200);
   // setSyncProvider() causes the Time library to synchronize with the
@@ -245,8 +240,34 @@ uint8_t readSerial() {
     case 'V': printVersion(); break;
     case '#': scrollTextFromSerial(); break;
     case '=': scrollEverything(); break;
+    case '?': printEEPROM(); break;
   }
   return 1;
+}
+
+void readEEPROM() {
+  LONG_MONTH = EEPROM.read(E_LONG_MONTH);
+  SCROLL_DELAY = EEPROM.read(E_SCROLL_DELAY);
+  TEMP_UNITS = EEPROM.read(E_TEMP_UNITS);
+  MANUAL_BRIGHTNESS = EEPROM.read(E_MANUAL_BRIGHTNESS);
+  PERSONALISATION_BITS = EEPROM.read(E_PERSONALISATION_BITS);
+  HALF_INTERVALS = EEPROM.read(E_HALF_INTERVALS);
+}
+
+void printEEPROM() {
+  printVersion();
+  readEEPROM();
+  Serial.println("EEPROM:");
+  Serial.println("  PROTOCOL_VERSION:" + String(PROTOCOL_VERSION));
+  Serial.println("  BUILD_DATE:" + String(__DATE__));
+  Serial.println("  BUILD_TIME:" + String(__TIME__));
+  Serial.println("  PROTOCOL_VERSION:" + String(PROTOCOL_VERSION));
+  Serial.println("  LONG_MONTH:" + String(LONG_MONTH));
+  Serial.println("  SCROLL_DELAY:" + String(SCROLL_DELAY));
+  Serial.println("  TEMP_UNITS:" + String(TEMP_UNITS));
+  Serial.println("  MANUAL_BRIGHTNESS:" + String(MANUAL_BRIGHTNESS));
+  Serial.println("  PERSONALISATION_BITS:" + String(PERSONALISATION_BITS));
+  Serial.println("  HALF_INTERVALS:" + String(HALF_INTERVALS));
 }
 
 void printVersion() {
