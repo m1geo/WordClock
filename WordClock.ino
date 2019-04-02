@@ -28,18 +28,29 @@ enum EEPROM_ADDRESSES {
   E_MANUAL_BRIGHTNESS,
   E_PERSONALISATION_BITS,
   E_HALF_INTERVALS,
+  E_FIXED_COLOUR_L, // uint16_t  7:0
+  E_FIXED_COLOUR_H, // uint16_t 15:8
+  E_COLOUR_OPTION,
 };
 
-// User Options
+// Consts - should be enums?!
 #define TEMP_UNITS_C 1
 #define TEMP_UNITS_F 2
 #define TEMP_UNITS_K 3
+#define COL_OPT_FIXED 0
+#define COL_OPT_RNDLTR 1
+#define COL_OPT_RNDWRD 2
+#define COL_OPT_RNDSCR 3
+
+// Setting variables
 uint8_t LONG_MONTH = 1;
 uint8_t SCROLL_DELAY = 25;
 uint8_t TEMP_UNITS = TEMP_UNITS_C;
 uint8_t MANUAL_BRIGHTNESS = 0;
 uint8_t PERSONALISATION_BITS = 0b00011111;
 uint8_t HALF_INTERVALS = 0;
+uint8_t COLOUR_OPTION = 0;
+uint16_t FIXED_COLOUR = 0;
 
 // Display Config - DON'T TOUCH
 #define DISP_LINES   9
@@ -198,14 +209,9 @@ void loop() {
         scrollDate(t, colours[random(0, num_colours)]); // random colour
         scrollTemp(c, colours[random(0, num_colours)]); // random colour
       }
-      z = timeToWords(t);
-      dispWord(z, getWordsColour());
+      dispWord(timeToWords(localNow()));
     }
   }
-}
-
-uint16_t getWordsColour() {
-  return colours[random(0, num_colours)];
 }
 
 void scrollEverything() {
@@ -222,7 +228,7 @@ void scrollEverything() {
   scrollDate(t, colours[random(0, num_colours)]); // random colour
   scrollTemp(c, colours[random(0, num_colours)]); // random colour
 
-  dispWord(timeToWords(localNow()), getWordsColour()); // random colour
+  dispWord(timeToWords(localNow()));\
 }
 
 uint8_t readSerial() {
@@ -237,6 +243,7 @@ uint8_t readSerial() {
     case 'L': setLongMonth(); break;
     case 'P': setPersonalisationBits(); break;
     case 'H': setHalfIntervals(); break;
+    case 'C': setColours(); break;
     case 'V': printVersion(); break;
     case '#': scrollTextFromSerial(); break;
     case '=': scrollEverything(); break;
@@ -252,6 +259,8 @@ void readEEPROM() {
   MANUAL_BRIGHTNESS = EEPROM.read(E_MANUAL_BRIGHTNESS);
   PERSONALISATION_BITS = EEPROM.read(E_PERSONALISATION_BITS);
   HALF_INTERVALS = EEPROM.read(E_HALF_INTERVALS);
+  FIXED_COLOUR = ((uint16_t) EEPROM.read(E_FIXED_COLOUR_H) << 8) | EEPROM.read(E_FIXED_COLOUR_L);
+  COLOUR_OPTION = EEPROM.read(E_COLOUR_OPTION);
 }
 
 void printEEPROM() {
@@ -267,6 +276,8 @@ void printEEPROM() {
   Serial.println("  MANUAL_BRIGHTNESS:" + String(MANUAL_BRIGHTNESS));
   Serial.println("  PERSONALISATION_BITS:" + String(PERSONALISATION_BITS));
   Serial.println("  HALF_INTERVALS:" + String(HALF_INTERVALS));
+  Serial.println("  FIXED_COLOUR:" + String(FIXED_COLOUR));
+  Serial.println("  COLOUR_OPTION:" + String(COLOUR_OPTION));
 }
 
 void printVersion() {
@@ -276,6 +287,14 @@ void printVersion() {
 void setHalfIntervals() {
   HALF_INTERVALS = Serial.parseInt();
   EEPROM.write(E_HALF_INTERVALS, HALF_INTERVALS);
+}
+
+void setColours() {
+  FIXED_COLOUR = Serial.parseInt();
+  COLOUR_OPTION = Serial.parseInt();
+  EEPROM.write(E_FIXED_COLOUR_H, highByte(FIXED_COLOUR));
+  EEPROM.write(E_FIXED_COLOUR_L, lowByte(FIXED_COLOUR));
+  EEPROM.write(E_COLOUR_OPTION, FIXED_COLOUR);
 }
 
 void setPersonalisationBits() {
@@ -334,7 +353,7 @@ void setDate() {
       scrollTime(t, colours[random(0, num_colours)]); // random colour
       scrollDate(t, colours[random(0, num_colours)]); // random colour
       
-      dispWord(timeToWords(localNow()), getWordsColour());
+      dispWord(timeToWords(localNow()));
   }
 }
 
@@ -344,7 +363,7 @@ void scrollTextFromSerial() {
   Serial.println(text);
   text.toCharArray(disp_str, sizeof(disp_str) / sizeof(char));
   scrollString(disp_str, colours[random(0, num_colours)]);
-  dispWord(timeToWords(localNow()), getWordsColour());
+  dispWord(timeToWords(localNow()));
 }
 
 void scrollTime(time_t t, uint16_t colour)
@@ -420,8 +439,45 @@ void dispPersonalisation(uint8_t bits, uint16_t colour) {
   matrix.show();
 }
 
-void dispWord(uint32_t wrds, uint16_t colour)
+uint16_t current_colour = 0;
+int word_index_old = 0;
+unsigned long call_index_old = 0;
+
+uint16_t getWordsColour(unsigned long call_index, int word_index) {
+  uint16_t colour = 0;
+  // section of code updates 'colour' every draw (/\call_index), every word (/\word_index) or every letter (/\letter_index)
+  if (COLOUR_OPTION == COL_OPT_FIXED) { // everything fixed
+    colour = FIXED_COLOUR;
+  } else if (COLOUR_OPTION == COL_OPT_RNDLTR) { // everything random
+    colour = colours[random(0, num_colours)];
+  } else if (COLOUR_OPTION == COL_OPT_RNDWRD) { // random per word
+    if (word_index != word_index_old) { // if new word, new colour
+      colour = colours[random(0, num_colours)];
+      current_colour = colour; // update current colour
+      word_index_old = word_index; // update word index
+    } else { // not new word, so same colour
+      colour = current_colour;
+    }
+  } else if (COLOUR_OPTION == COL_OPT_RNDSCR) { // random per screen draw
+    if (call_index != call_index_old) { // if new call, new colour
+      colour = colours[random(0, num_colours)];
+      current_colour = colour; // update current colour
+      call_index_old = call_index; // update call index
+    } else { // not new word, so same colour
+      colour = current_colour;
+    }
+  } else {
+    colour = colours[random(0, num_colours)];
+    Serial.println("Unsure what to do about colour request! Given random!");
+  }
+  
+  return colour;
+}
+
+void dispWord(uint32_t wrds)
 {
+  unsigned long time_call_idx = millis();
+  uint16_t colour = 0;
   matrix.fillScreen(0);
   for (int i = 0; i < 32; i++) {
     if (bitRead(wrds, i)) // if word at index 'i' should be on
@@ -429,11 +485,9 @@ void dispWord(uint32_t wrds, uint16_t colour)
       uint8_t line   = word_pixel_data[i][0];
       uint8_t pixel  = word_pixel_data[i][1];
       uint8_t pixlen = word_pixel_data[i][2];
-      //colour   = colours[random(0, num_colours)]; // random colour per word
-      //sprintf(disp_str, "i=%d line=%u, pixel=%u, pixlen=%u, col=%u \n", i, line, pixel, pixlen, colour);
-      //Serial.print(disp_str);
+
       for (int j = pixel; j < (pixel + pixlen); j++) {
-        //colour   = colours[random(0, num_colours)]; // random colour per letter
+        colour = getWordsColour(time_call_idx, i);
         matrix.drawPixel(j, line, colour);
       }
     }
