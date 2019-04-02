@@ -255,7 +255,6 @@ void readEEPROM() {
 }
 
 void printEEPROM() {
-  printVersion();
   readEEPROM();
   Serial.println("EEPROM:");
   Serial.println("  PROTOCOL_VERSION:" + String(PROTOCOL_VERSION));
