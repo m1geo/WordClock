@@ -74,6 +74,7 @@ int x = matrix.width();
 int pass = 0;
 uint32_t z = 0;
 char disp_str[20];
+DS3232RTC RTC;
 
 // ISR code to read LDR and respond to brightness changes
 ISR(TIMER1_COMPA_vect) // interrupt 10Hz on Timer 1
